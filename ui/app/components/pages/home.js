@@ -18,6 +18,7 @@ const MainContainer = require('../../main-container')
 // other views
 const BuyView = require('../../components/buy-button-subview')
 const QrView = require('../../components/qr-code')
+const Web3Approval = require('./web3-approval')
 
 // Routes
 const {
@@ -53,6 +54,7 @@ class Home extends Component {
       currentView,
       activeAddress,
       seedWords,
+      pendingWeb3Requests,
     } = this.props
 
     // notices
@@ -81,6 +83,11 @@ class Home extends Component {
           pathname: RESTORE_VAULT_ROUTE,
         },
       })
+    }
+
+    if (pendingWeb3Requests && pendingWeb3Requests.length > 0) {
+      log.debug('rendering web3 API approval screen')
+      return h(Web3Approval, { origin: pendingWeb3Requests[0] })
     }
 
     // show current view
@@ -167,6 +174,7 @@ Home.propTypes = {
   isPopup: PropTypes.bool,
   isMouseUser: PropTypes.bool,
   t: PropTypes.func,
+  pendingWeb3Requests: PropTypes.array,
 }
 
 function mapStateToProps (state) {
@@ -190,6 +198,7 @@ function mapStateToProps (state) {
     unapprovedMsgCount,
     unapprovedPersonalMsgCount,
     unapprovedTypedMessagesCount,
+    pendingWeb3Requests,
   } = metamask
   const selected = address || Object.keys(accounts)[0]
 
@@ -227,6 +236,7 @@ function mapStateToProps (state) {
     isRevealingSeedWords: state.metamask.isRevealingSeedWords,
     Qr: state.appState.Qr,
     welcomeScreenSeen: state.metamask.welcomeScreenSeen,
+    pendingWeb3Requests,
 
     // state needed to get account dropdown temporarily rendering from app bar
     selected,
