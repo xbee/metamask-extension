@@ -5,13 +5,19 @@ const assert = require('assert')
 const pify = require('pify')
 const webdriver = require('selenium-webdriver')
 const { By, Key, until } = webdriver
-const { waitUntilXWindowHandles, switchToWindowWithTitle } = require('./beta/helpers')
+const {
+  closeAllWindowHandlesExcept,
+  waitUntilXWindowHandles,
+  switchToWindowWithTitle,
+  switchToWindowWithUrlThatMatches,
+  openNewPage,
+} = require('./beta/helpers')
 const { delay, buildChromeWebDriver, buildFirefoxWebdriver, installWebExt, getExtensionIdChrome, getExtensionIdFirefox } = require('./func')
 
 describe('Metamask popup page', function () {
   let driver, accountAddress, tokenAddress, extensionId
 
-  this.timeout(0)
+  this.timeout(30000)
 
   before(async function () {
     if (process.env.SELENIUM_BROWSER === 'chrome') {
@@ -39,12 +45,12 @@ describe('Metamask popup page', function () {
       if (errors.length) {
         const errorReports = errors.map(err => err.message)
         const errorMessage = `Errors found in browser console:\n${errorReports.join('\n')}`
-        this.test.error(new Error(errorMessage))
+        console.error(new Error(errorMessage))
       }
     }
     // gather extra data if test failed
     if (this.currentTest.state === 'failed') {
-      await verboseReportOnFailure(this.currentTest)
+      await verboseReportOnFailure(driver, this.currentTest)
     }
   })
 
@@ -245,84 +251,99 @@ describe('Metamask popup page', function () {
   })
 
   describe('Token Factory', function () {
-    it('creates a new token', async () => {
+    let windowHandles
+    let extension
+    let dapp
+    it('approves web3 access', async () => {
       await driver.get('http://127.0.0.1:8080/')
       await delay(1000)
 
       await waitUntilXWindowHandles(driver, 2)
-      let windowHandles = await driver.getAllWindowHandles()
+      windowHandles = await driver.getAllWindowHandles()
 
-      const popup = await switchToWindowWithTitle(driver, 'MetaMask Notification', windowHandles)
-      const dapp = windowHandles.find(handle => handle !== popup)
+      dapp = await switchToWindowWithTitle(driver, 'E2E Test Dapp', windowHandles)
+      await delay(400)
+      extension = await switchToWindowWithUrlThatMatches(driver, /notification.html/, windowHandles)
       await delay(400)
 
+      await closeAllWindowHandlesExcept(driver, [extension, dapp])
+      await switchToWindowWithUrlThatMatches(driver, /notification.html/, [extension, dapp])
       const approveButton = await driver.wait(until.elementLocated(By.xpath(`//button[contains(text(), 'APPROVE')]`)), 10000)
-      approveButton.click()
+      await approveButton.click()
+    })
 
+    it('initiates token creation in the dapp', async () => {
       await delay(400)
-      await driver.switchTo().window(dapp)
+      dapp = await switchToWindowWithTitle(driver, 'E2E Test Dapp', windowHandles)
       await delay(400)
 
       const createToken = await driver.wait(until.elementLocated(By.xpath(`//button[contains(text(), 'Create Token')]`)), 10000)
       await createToken.click()
       await delay(400)
+    })
 
-      windowHandles = await driver.getAllWindowHandles()
-      await driver.switchTo().window(windowHandles[windowHandles.length - 1])
+    it('confirms token creation', async () => {
+      await closeAllWindowHandlesExcept(driver, [dapp])
+      await switchToWindowWithTitle(driver, 'E2E Test Dapp', windowHandles)
+      if (process.env.SELENIUM_BROWSER === 'chrome') {
+        await openNewPage(driver, `chrome-extension://${extensionId}/popup.html`)
+      } else if (process.env.SELENIUM_BROWSER === 'firefox') {
+        await openNewPage(driver, `moz-extension://${extensionId}/popup.html`)
+      }
+      await delay(1000)
       const byMetamaskSubmit = By.css('#pending-tx-form > div.flex-row.flex-space-around.conf-buttons > input')
       const metamaskSubmit = await driver.wait(until.elementLocated(byMetamaskSubmit))
       await metamaskSubmit.click()
       await delay(1000)
+    })
 
-      await driver.switchTo().window(dapp)
+    it('gets the token contract address', async () => {
+      windowHandles = await driver.getAllWindowHandles()
+      await switchToWindowWithTitle(driver, 'E2E Test Dapp', windowHandles)
       await delay(200)
 
       const tokenContractAddress = await driver.wait(until.elementLocated(By.css('#tokenAddress')), 10000)
       await driver.wait(until.elementTextMatches(tokenContractAddress, /0x/))
       tokenAddress = await tokenContractAddress.getText()
-
     })
 
     it('navigates back to MetaMask popup in the tab', async function () {
-      if (process.env.SELENIUM_BROWSER === 'chrome') {
-        await driver.get(`chrome-extension://${extensionId}/popup.html`)
-      } else if (process.env.SELENIUM_BROWSER === 'firefox') {
-        await driver.get(`moz-extension://${extensionId}/popup.html`)
-      }
-      await delay(700)
+      await switchToWindowWithUrlThatMatches(driver, /popup.html/, windowHandles)
+      await delay(800)
     })
   })
 
   describe('Add Token', function () {
 
     it('switches to the add token screen', async function () {
-      const tokensTab = await driver.findElement(By.css('#app-content > div > div.app-primary.from-right > div > section > div > div.inactiveForm.pointer'))
+      const tokensTab = await driver.findElement(By.css('.inactiveForm.pointer'), 10000)
       assert.equal(await tokensTab.getText(), 'TOKENS')
       await tokensTab.click()
-      await delay(300)
+      await delay(800)
     })
 
     it('navigates to the add token screen', async function () {
-      const addTokenButton = await driver.findElement(By.css('#app-content > div > div.app-primary.from-right > div > section > div.full-flex-height > div > button'))
+      const addTokenButton = await driver.findElement(By.css('div.full-flex-height > div > button'), 10000)
       assert.equal(await addTokenButton.getText(), 'ADD TOKEN')
       await addTokenButton.click()
     })
 
     it('checks add token screen rendered', async function () {
-      const addTokenScreen = await driver.findElement(By.css('#app-content > div > div.app-primary.from-right > div > div.section-title.flex-row.flex-center > h2'))
+      await delay(800)
+      const addTokenScreen = await driver.findElement(By.css('#app-content > div > div.app-primary.from-right > div > div.section-title.flex-row.flex-center > h2'), 10000)
       assert.equal(await addTokenScreen.getText(), 'ADD TOKEN')
     })
 
     it('adds token parameters', async function () {
       const tokenContractAddress = await driver.findElement(By.css('#token-address'))
       await tokenContractAddress.sendKeys(tokenAddress)
-      await delay(300)
-      await driver.findElement(By.css('#app-content > div > div.app-primary.from-right > div > div.flex-column.flex-justify-center.flex-grow.select-none > div > button')).click()
-      await delay(200)
+      await delay(800)
+      await driver.findElement(By.css('#app-content > div > div.app-primary.from-right > div > div.flex-column.flex-justify-center.flex-grow.select-none > div > button'), 10000).click()
+      await delay(800)
     })
 
     it('checks the token balance', async function () {
-      const tokenBalance = await driver.findElement(By.css('#app-content > div > div.app-primary.from-left > div > section > div.full-flex-height > ol > li:nth-child(2) > h3'))
+      const tokenBalance = await driver.findElement(By.css('#app-content > div > div.app-primary.from-left > div > section > div.full-flex-height > ol > li:nth-child(2) > h3'), 10000)
       assert.equal(await tokenBalance.getText(), '100 TST')
     })
   })
@@ -351,7 +372,7 @@ describe('Metamask popup page', function () {
     return matchedErrorObjects
   }
 
-  async function verboseReportOnFailure (test) {
+  async function verboseReportOnFailure (driver, test) {
     let artifactDir
     if (process.env.SELENIUM_BROWSER === 'chrome') {
       artifactDir = `./test-artifacts/chrome/${test.title}`
