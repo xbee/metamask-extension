@@ -450,10 +450,16 @@ describe('MetaMask', function () {
       await openNewPage(driver, 'http://127.0.0.1:8080/')
       await delay(regularDelayMs)
 
-      await waitUntilXWindowHandles(driver, 2)
+      await waitUntilXWindowHandles(driver, 3)
       let windowHandles = await driver.getAllWindowHandles()
+
       const extension = windowHandles[0]
-      const dapp = windowHandles[1]
+      const popup = await switchToWindowWithTitle(driver, 'MetaMask Notification', windowHandles)
+      const dapp = windowHandles.find(handle => handle !== extension && handle !== popup)
+
+      await delay(regularDelayMs)
+      const approveButton = await findElement(driver, By.xpath(`//button[contains(text(), 'Approve')]`), 10000)
+      approveButton.click()
 
       await driver.switchTo().window(dapp)
       await delay(regularDelayMs)
@@ -462,7 +468,9 @@ describe('MetaMask', function () {
       await send3eth.click()
       await delay(regularDelayMs)
 
+      await waitUntilXWindowHandles(driver, 3)
       windowHandles = await driver.getAllWindowHandles()
+
       await driver.switchTo().window(windowHandles[2])
       await delay(regularDelayMs)
 
