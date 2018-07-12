@@ -5,6 +5,7 @@ const assert = require('assert')
 const pify = require('pify')
 const webdriver = require('selenium-webdriver')
 const { By, Key, until } = webdriver
+const { waitUntilXWindowHandles, switchToWindowWithTitle } = require('./beta/helpers')
 const { delay, buildChromeWebDriver, buildFirefoxWebdriver, installWebExt, getExtensionIdChrome, getExtensionIdFirefox } = require('./func')
 
 describe('Metamask popup page', function () {
@@ -244,47 +245,42 @@ describe('Metamask popup page', function () {
   })
 
   describe('Token Factory', function () {
-
-    it('navigates to token factory', async function () {
-      await driver.get('http://tokenfactory.surge.sh/')
-    })
-
-    it('navigates to create token contract link', async function () {
-      const createToken = await driver.findElement(By.css('#bs-example-navbar-collapse-1 > ul > li:nth-child(3) > a'))
-      await createToken.click()
-    })
-
-    it('adds input for token', async function () {
-      const totalSupply = await driver.findElement(By.css('#main > div > div > div > div:nth-child(2) > div > div:nth-child(5) > input'))
-      const tokenName = await driver.findElement(By.css('#main > div > div > div > div:nth-child(2) > div > div:nth-child(6) > input'))
-      const tokenDecimal = await driver.findElement(By.css('#main > div > div > div > div:nth-child(2) > div > div:nth-child(7) > input'))
-      const tokenSymbol = await driver.findElement(By.css('#main > div > div > div > div:nth-child(2) > div > div:nth-child(8) > input'))
-      const createToken = await driver.findElement(By.css('#main > div > div > div > div:nth-child(2) > div > button'))
-
-      await totalSupply.sendKeys('100')
-      await tokenName.sendKeys('Test')
-      await tokenDecimal.sendKeys('0')
-      await tokenSymbol.sendKeys('TST')
-      await createToken.click()
+    it('creates a new token', async () => {
+      await driver.get('http://127.0.0.1:8080/')
       await delay(1000)
-    })
 
-    // There is an issue with blank confirmation window in Firefox, but the button is still there and the driver is able to clicked (?.?)
-    it('confirms transaction in MetaMask popup', async function () {
-      const windowHandles = await driver.getAllWindowHandles()
+      await waitUntilXWindowHandles(driver, 2)
+      let windowHandles = await driver.getAllWindowHandles()
+
+      const popup = await switchToWindowWithTitle(driver, 'MetaMask Notification', windowHandles)
+      const dapp = windowHandles.find(handle => handle !== popup)
+      await delay(400)
+
+      const approveButton = await driver.wait(until.elementLocated(By.xpath(`//button[contains(text(), 'APPROVE')]`)), 10000)
+      approveButton.click()
+
+      await delay(400)
+      await driver.switchTo().window(dapp)
+      await delay(400)
+
+      const createToken = await driver.wait(until.elementLocated(By.xpath(`//button[contains(text(), 'Create Token')]`)), 10000)
+      await createToken.click()
+      await delay(400)
+
+      windowHandles = await driver.getAllWindowHandles()
       await driver.switchTo().window(windowHandles[windowHandles.length - 1])
       const byMetamaskSubmit = By.css('#pending-tx-form > div.flex-row.flex-space-around.conf-buttons > input')
       const metamaskSubmit = await driver.wait(until.elementLocated(byMetamaskSubmit))
       await metamaskSubmit.click()
       await delay(1000)
-    })
 
-    it('switches back to Token Factory to grab the token contract address', async function () {
-      const windowHandles = await driver.getAllWindowHandles()
-      await driver.switchTo().window(windowHandles[0])
-      const tokenContactAddress = await driver.findElement(By.css('#main > div > div > div > div:nth-child(2) > span:nth-child(3)'))
-      tokenAddress = await tokenContactAddress.getText()
-      await delay(500)
+      await driver.switchTo().window(dapp)
+      await delay(200)
+
+      const tokenContractAddress = await driver.wait(until.elementLocated(By.css('#tokenAddress')), 10000)
+      await driver.wait(until.elementTextMatches(tokenContractAddress, /0x/))
+      tokenAddress = await tokenContractAddress.getText()
+
     })
 
     it('navigates back to MetaMask popup in the tab', async function () {
