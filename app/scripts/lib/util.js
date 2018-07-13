@@ -37,6 +37,10 @@ const getEnvironmentType = (url = window.location.href) => {
   }
 }
 
+const getBrowser = () => {
+  return 'BROWSER_PLATFORM'
+}
+
 /**
  * Checks whether a given balance of ETH, represented as a hex string, is sufficient to pay a value plus a gas fee
  *
@@ -102,6 +106,7 @@ function BnMultiplyByFraction (targetBN, numerator, denominator) {
 module.exports = {
   getStack,
   getEnvironmentType,
+  getBrowser,
   sufficientBalance,
   hexToBn,
   bnToHex,

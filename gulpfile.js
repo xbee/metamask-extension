@@ -7,6 +7,7 @@ const source = require('vinyl-source-stream')
 const buffer = require('vinyl-buffer')
 const gutil = require('gulp-util')
 const watch = require('gulp-watch')
+const replace = require('gulp-replace')
 const sourcemaps = require('gulp-sourcemaps')
 const jsoneditor = require('gulp-json-editor')
 const zip = require('gulp-zip')
@@ -92,6 +93,13 @@ createCopyTasks('manifest', {
   source: './app/',
   pattern: '/*.json',
   destinations: browserPlatforms.map(platform => `./dist/${platform}`),
+})
+
+// set browser variable
+browserPlatforms.forEach(platform => {
+  gulp.src([`./dist/${platform}/scripts/utils.js`])
+    .pipe(replace('BROWSER_PLATFORM', platform))
+    .pipe(gulp.dest('./dist/${platform}/scripts/utils.js'))
 })
 
 // copy mascara
