@@ -446,15 +446,27 @@ describe('MetaMask', function () {
   })
 
   describe('Send ETH from dapp', () => {
-    it('starts a send transaction inside the dapp', async () => {
+    let windowHandles
+    let extension
+    let popup
+    let dapp
+    it('opens the dapp and approves web3 access', async () => {
       await openNewPage(driver, 'http://127.0.0.1:8080/')
       await delay(regularDelayMs)
 
-      await waitUntilXWindowHandles(driver, 2)
-      let windowHandles = await driver.getAllWindowHandles()
-      const extension = windowHandles[0]
-      const dapp = windowHandles[1]
+      await waitUntilXWindowHandles(driver, 3)
+      windowHandles = await driver.getAllWindowHandles()
 
+      extension = windowHandles[0]
+      popup = await switchToWindowWithTitle(driver, 'MetaMask Notification', windowHandles)
+      dapp = windowHandles.find(handle => handle !== extension && handle !== popup)
+
+      await delay(regularDelayMs)
+      const approveButton = await findElement(driver, By.xpath(`//button[contains(text(), 'Approve')]`), 10000)
+      await approveButton.click()
+    })
+
+    it('initiates a send from the dapp', async () => {
       await driver.switchTo().window(dapp)
       await delay(regularDelayMs)
 
@@ -462,13 +474,15 @@ describe('MetaMask', function () {
       await send3eth.click()
       await delay(regularDelayMs)
 
-      windowHandles = await driver.getAllWindowHandles()
-      await driver.switchTo().window(windowHandles[2])
+      await driver.switchTo().window(extension)
+      await loadExtension(driver, extensionId)
       await delay(regularDelayMs)
+    })
 
+    it('confirms the send eth transaction', async () => {
+      const confirmButton = await findElement(driver, By.xpath(`//button[contains(text(), 'Confirm')]`), 10000)
       assertElementNotPresent(webdriver, driver, By.xpath(`//li[contains(text(), 'Data')]`))
 
-      const confirmButton = await findElement(driver, By.xpath(`//button[contains(text(), 'Confirm')]`), 10000)
       await confirmButton.click()
       await delay(regularDelayMs)
 
@@ -512,7 +526,7 @@ describe('MetaMask', function () {
 
     it('displays the contract creation data', async () => {
       const dataTab = await findElement(driver, By.xpath(`//li[contains(text(), 'Data')]`))
-      dataTab.click()
+      await dataTab.click()
       await (regularDelayMs)
 
       await findElement(driver, By.xpath(`//div[contains(text(), '127.0.0.1')]`))
@@ -522,7 +536,7 @@ describe('MetaMask', function () {
       assert.equal(confirmDataText.match(/0x608060405234801561001057600080fd5b5033600160006101000a81548173ffffffffffffffffffffffffffffffffffffffff/))
 
       const detailsTab = await findElement(driver, By.xpath(`//li[contains(text(), 'Details')]`))
-      detailsTab.click()
+      await detailsTab.click()
       await (regularDelayMs)
     })
 
@@ -548,7 +562,7 @@ describe('MetaMask', function () {
       await delay(regularDelayMs)
 
       await driver.switchTo().window(extension)
-      await delay(regularDelayMs)
+      await delay(largeDelayMs)
 
       await findElements(driver, By.css('.tx-list-pending-item-container'))
       const [txListValue] = await findElements(driver, By.css('.tx-list-value'))
@@ -740,7 +754,7 @@ describe('MetaMask', function () {
 
     it('displays the token transfer data', async () => {
       const dataTab = await findElement(driver, By.xpath(`//li[contains(text(), 'Data')]`))
-      dataTab.click()
+      await dataTab.click()
       await (regularDelayMs)
 
       const functionType = await findElement(driver, By.css('.confirm-page-container-content__function-type'))
@@ -752,7 +766,7 @@ describe('MetaMask', function () {
       assert.equal(confirmDataText.match(/0xa9059cbb0000000000000000000000002f318c334780961fb129d2a6c30d0763d9a5c97/))
 
       const detailsTab = await findElement(driver, By.xpath(`//li[contains(text(), 'Details')]`))
-      detailsTab.click()
+      await detailsTab.click()
       await (regularDelayMs)
     })
 
