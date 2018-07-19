@@ -204,6 +204,7 @@ function blacklistedDomainCheck () {
     'adyen.com',
     'gravityforms.com',
     'harbourair.com',
+    'blueskybooking.com',
   ]
   var currentUrl = window.location.href
   var currentRegex
